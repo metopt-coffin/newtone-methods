@@ -1,4 +1,4 @@
-#include "methods/NewtonClassic.h"
+#include "methods/Newton.h"
 
 #include "sd_methods/Brent.h"
 #include "sole-solver/QuadMatrix.h"

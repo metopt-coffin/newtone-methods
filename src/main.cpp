@@ -1,4 +1,4 @@
-#include "methods/NewtonClassic.h"
+#include "methods/Newton.h"
 #include "util/Function.h"
 #include "util/Misc.h"
 #include "util/ReplayData.h"
