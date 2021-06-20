@@ -9,21 +9,10 @@
 #include <functional>
 #include <type_traits>
 
-std::vector<double> NewtonMethods::init_method(const Function & func, std::vector<double> init)
-{
-    m_last_func = &func;
-    m_replay_data.clear();
-
-    if (init.empty()) {
-        return std::vector<double>(func.dims(), 0.);
-    } else {
-        return std::move(init);
-    }
-}
-
 std::vector<double> NewtonMethods::classic(const Function & func, std::vector<double> init)
 {
     auto curr = init_method(func, std::move(init));
+    auto eps_2 = m_eps * m_eps;
 
     auto grad = func.grad();
     auto hessian = grad.grad();
@@ -34,7 +23,7 @@ std::vector<double> NewtonMethods::classic(const Function & func, std::vector<do
         auto shift = Solver::solve_lu(QuadMatrix(hessian(curr)), util::negate(grad(curr)));
 
         auto shift_len = util::length(shift.answer);
-        if (shift_len < m_eps) {
+        if (shift_len < eps_2) {
             break;
         } else {
             curr = util::plus(std::move(curr), std::move(shift.answer));
@@ -46,6 +35,7 @@ std::vector<double> NewtonMethods::classic(const Function & func, std::vector<do
 std::vector<double> NewtonMethods::with_sd_search(const Function & func, std::vector<double> init)
 {
     auto curr = init_method(func, std::move(init));
+    auto eps_2 = m_eps * m_eps;
 
     auto grad = func.grad();
     auto hessian = grad.grad();
@@ -62,7 +52,7 @@ std::vector<double> NewtonMethods::with_sd_search(const Function & func, std::ve
         log_alpha(iter_num, alpha);
 
         shift.answer = util::mul(std::move(shift.answer), alpha);
-        if (util::length(shift.answer) < m_eps) {
+        if (util::length(shift.answer) < eps_2) {
             break;
         } else {
             curr = util::plus(std::move(curr), std::move(shift.answer));
@@ -75,6 +65,7 @@ std::vector<double> NewtonMethods::with_sd_search(const Function & func, std::ve
 std::vector<double> NewtonMethods::with_desc_dir(const Function & func, std::vector<double> init)
 {
     auto curr = init_method(func, std::move(init));
+    auto eps_2 = m_eps * m_eps;
 
     auto grad = func.grad();
     auto hessian = grad.grad();
@@ -98,7 +89,7 @@ std::vector<double> NewtonMethods::with_desc_dir(const Function & func, std::vec
         log_alpha(iter_num, alpha);
 
         shift.answer = util::mul(std::move(shift.answer), alpha);
-        if (util::length(shift.answer) < m_eps) {
+        if (util::length(shift.answer) < eps_2) {
             break;
         } else {
             curr = util::plus(std::move(curr), std::move(shift.answer));
@@ -106,16 +97,4 @@ std::vector<double> NewtonMethods::with_desc_dir(const Function & func, std::vec
     }
 
     return curr;
-}
-
-void NewtonMethods::log_x(unsigned iter_num, const std::vector<double> & x)
-{
-    m_replay_data.emplace_back<util::VdComment>(iter_num, "x:");
-    m_replay_data.emplace_back<util::VdPoint>(iter_num, x);
-}
-
-void NewtonMethods::log_alpha(unsigned iter_num, double alpha)
-{
-    m_replay_data.emplace_back<util::VdComment>(iter_num, "alpha:");
-    m_replay_data.emplace_back<util::VdValue>(iter_num, alpha);
 }
