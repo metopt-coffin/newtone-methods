@@ -4,12 +4,24 @@
 
 namespace util {
 
-std::vector<double> negate(std::vector<double> vec);
-std::vector<double> plus(std::vector<double> lhs, std::vector<double> rhs);
-std::vector<double> mul(std::vector<double> vec, double scalar);
-std::vector<double> normalize(std::vector<double> vec);
+using VectorT = std::vector<double>;
+using MatrixT = std::vector<VectorT>;
 
-double scalar(const std::vector<double> & lhs, const std::vector<double> & rhs);
-double length(const std::vector<double> & vec);
+VectorT negate(VectorT vec);
+VectorT plus(VectorT lhs, VectorT rhs);
+MatrixT plus(MatrixT lhs, MatrixT rhs);
+VectorT minus(VectorT lhs, VectorT rhs);
+VectorT normalize(VectorT vec);
+
+VectorT mul(VectorT vec, double scalar);
+VectorT mul(const MatrixT & matrix, const VectorT & vec);
+MatrixT mul(const VectorT & lhs, const VectorT & rhs);
+MatrixT mul(MatrixT matrix, double scalar);
+MatrixT mul(MatrixT lhs, MatrixT rhs);
+
+MatrixT trans(MatrixT mtx);
+
+double scalar(const VectorT & lhs, const VectorT & rhs);
+double length(const VectorT & vec);
 
 } // namespace util

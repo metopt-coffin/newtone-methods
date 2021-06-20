@@ -39,14 +39,11 @@ std::vector<double> NewtonMethods::with_sd_search(const Function & func, std::ve
 
     auto grad = func.grad();
     auto hessian = grad.grad();
-    min1d::Brent sd_searcher(m_eps);
 
     for (unsigned iter_num = 0; iter_num < MaxIter; ++iter_num) {
         auto shift = Solver::solve_lu(QuadMatrix(hessian(curr)), util::negate(grad(curr)));
 
-        auto alpha = sd_searcher.find_min(min1d::Function(
-            [&curr, &shift, &func](double x) { return func(util::plus(curr, util::mul(shift.answer, x))); },
-            {-100., 100.}));
+        auto alpha = find_alpha(curr, shift.answer);
 
         log_x(iter_num, curr);
         log_alpha(iter_num, alpha);
@@ -69,7 +66,6 @@ std::vector<double> NewtonMethods::with_desc_dir(const Function & func, std::vec
 
     auto grad = func.grad();
     auto hessian = grad.grad();
-    min1d::Brent sd_searcher(m_eps);
 
     for (unsigned iter_num = 0; iter_num < MaxIter; ++iter_num) {
         auto curr_grad = grad(curr);
@@ -81,9 +77,7 @@ std::vector<double> NewtonMethods::with_desc_dir(const Function & func, std::vec
             shift.answer = std::move(curr_grad_neg);
         }
 
-        auto alpha = sd_searcher.find_min(min1d::Function(
-            [&curr, &shift, &func](double x) { return func(util::plus(curr, util::mul(shift.answer, x))); },
-            {-100., 100.}));
+        auto alpha = find_alpha(curr, shift.answer);
 
         log_x(iter_num, curr);
         log_alpha(iter_num, alpha);

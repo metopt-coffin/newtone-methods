@@ -1,7 +1,9 @@
 #include "methods/Newton.h"
+#include "methods/QuasiNewton.h"
 #include "util/Function.h"
 #include "util/Misc.h"
 #include "util/ReplayData.h"
+#include "util/VectorOps.h"
 #include "util/VersionedData.h"
 
 #include <algorithm>
@@ -88,7 +90,7 @@ std::ostream & print(std::ostream & out, const util::ReplayData & replay_data)
     return out;
 }
 
-void count_and_print(NewtonMethods & newtone, const Function & func, const std::vector<double> & init = {})
+void count_and_print_newton(NewtonMethods & newtone, const Function & func, const std::vector<double> & init = {})
 {
     auto print_replay = [&](const auto & res) {
         print(std::cout, newtone.replay_data()) << '\n';
@@ -107,30 +109,57 @@ void count_and_print(NewtonMethods & newtone, const Function & func, const std::
     print_replay(newtone.with_desc_dir(func, init));
 }
 
+void count_and_print_quasi(const Function & func, const std::vector<double> & init = {})
+{
+    QuasiNewton newtone(0.000001);
+
+    auto print_replay = [&](const auto & res) {
+        print(std::cout, newtone.replay_data()) << '\n';
+        print(std::cout, res) << "\n";
+
+        std::cout << "For matlab:\n\n" << format_for_matlab(newtone.replay_data(), func) << "\n\n";
+    };
+
+    std::cout << "Broyder-Fletcher-Sheno:\n";
+    print_replay(newtone.bfs(func, init));
+}
+
 int main() {
-    NewtonMethods newtone(0.000001);
+    // NewtonMethods newtone(0.000001);
 
-    Function f1(2, {
-        {{{0, 2}}, 1.},
-        {{{1, 2}}, 1.},
-        {{{0, 1}, {1, 1}}, 1.2}
-    });
-    std::vector init1{4., 1.};
+    // Function f1(2, {
+    //     {{{0, 2}}, 1.},
+    //     {{{1, 2}}, 1.},
+    //     {{{0, 1}, {1, 1}}, 1.2}
+    // });
+    // std::vector init1{4., 1.};
 
-    std::cout << "func 1: " << f1 << "\n\n";
-    count_and_print(newtone, f1, init1);
+    // std::cout << "func 1: " << f1 << "\n\n";
+    // count_and_print_newton(newtone, f1, init1);
 
-    Function f2(2, {
+    // Function f2(2, {
+    //     {{{1, 2}}, 100.},
+    //     {{{0, 2}, {1, 1}}, -200.},
+    //     {{{0, 4}}, 100.},
+
+    //     {{}, 1.},
+    //     {{{0, 1}}, -2},
+    //     {{{0, 2}}, 1.}
+    // });
+    // std::vector init2{-1.2, 1.};
+
+    // std::cout << "func 2: " << f2 << "\n\n";
+    // count_and_print_newton(newtone, f2, init2);
+
+    Function f3(2, {
         {{{1, 2}}, 100.},
         {{{0, 2}, {1, 1}}, -200.},
         {{{0, 4}}, 100.},
-
         {{}, 1.},
-        {{{0, 1}}, -2},
+        {{{0, 1}}, -2.},
         {{{0, 2}}, 1.}
     });
-    std::vector init2{-1.2, 1.};
 
-    std::cout << "func 2: " << f2 << "\n\n";
-    count_and_print(newtone, f2, init2);
+    std::cout << "func 3: " << f3 << "\n\n";
+    count_and_print_quasi(f3, {0., 1.});
 }

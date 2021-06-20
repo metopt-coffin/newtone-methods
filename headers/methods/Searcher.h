@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sd_methods/Brent.h"
 #include "util/Function.h"
 #include "util/ReplayData.h"
 
@@ -9,6 +10,7 @@ struct Searcher
 
     Searcher(double eps)
         : m_eps(eps)
+        , m_sd_searcher(m_eps)
     {}
 
 
@@ -17,6 +19,8 @@ struct Searcher
 
 protected:
     PointT init_method(const Function & func, PointT init);
+
+    double find_alpha(const PointT & curr, const std::vector<double> & shift);
 
     void log_x(unsigned iter_num, const std::vector<double> & x);
     void log_alpha(unsigned iter_num, double alpha);
@@ -28,4 +32,5 @@ protected:
 
     const Function * m_last_func = nullptr;
     util::ReplayData m_replay_data;
+    min1d::Brent m_sd_searcher;
 };

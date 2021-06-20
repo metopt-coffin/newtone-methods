@@ -1,5 +1,8 @@
 #include "methods/Searcher.h"
 
+#include "sd_methods/Function.h"
+#include "util/VectorOps.h"
+
 
 auto Searcher::init_method(const Function & func, std::vector<double> init) -> PointT
 {
@@ -11,6 +14,13 @@ auto Searcher::init_method(const Function & func, std::vector<double> init) -> P
     } else {
         return std::move(init);
     }
+}
+
+double Searcher::find_alpha(const PointT & curr, const std::vector<double> & shift)
+{
+    return m_sd_searcher.find_min(min1d::Function(
+        [&](double x) { return last_func()(util::plus(curr, util::mul(shift, x))); },
+        {-100., 100.}));
 }
 
 void Searcher::log_x(unsigned iter_num, const std::vector<double> & x)
