@@ -20,13 +20,13 @@ std::vector<double> NewtonMethods::classic(const Function & func, std::vector<do
     for (unsigned iter_num = 0; iter_num < MaxIter; ++iter_num) {
         log_x(iter_num, curr);
 
-        auto shift = Solver::solve_lu(QuadMatrix(hessian(curr)), util::negate(grad(curr)));
+        auto shift = Solver::solve_lu(QuadMatrix(hessian(curr)), util::neg(grad(curr)));
 
         auto shift_len = util::length(shift.answer);
         if (shift_len < eps_2) {
             break;
         } else {
-            curr = util::plus(std::move(curr), std::move(shift.answer));
+            curr = util::add(std::move(curr), std::move(shift.answer));
         }
     }
     return curr;
@@ -41,7 +41,7 @@ std::vector<double> NewtonMethods::with_sd_search(const Function & func, std::ve
     auto hessian = grad.grad();
 
     for (unsigned iter_num = 0; iter_num < MaxIter; ++iter_num) {
-        auto shift = Solver::solve_lu(QuadMatrix(hessian(curr)), util::negate(grad(curr)));
+        auto shift = Solver::solve_lu(QuadMatrix(hessian(curr)), util::neg(grad(curr)));
 
         auto alpha = find_alpha(curr, shift.answer);
 
@@ -52,7 +52,7 @@ std::vector<double> NewtonMethods::with_sd_search(const Function & func, std::ve
         if (util::length(shift.answer) < eps_2) {
             break;
         } else {
-            curr = util::plus(std::move(curr), std::move(shift.answer));
+            curr = util::add(std::move(curr), std::move(shift.answer));
         }
     }
 
@@ -69,7 +69,7 @@ std::vector<double> NewtonMethods::with_desc_dir(const Function & func, std::vec
 
     for (unsigned iter_num = 0; iter_num < MaxIter; ++iter_num) {
         auto curr_grad = grad(curr);
-        auto curr_grad_neg = util::negate(curr_grad);
+        auto curr_grad_neg = util::neg(curr_grad);
 
         auto shift = Solver::solve_lu(QuadMatrix(hessian(curr)), std::vector(curr_grad_neg));
 
@@ -86,7 +86,7 @@ std::vector<double> NewtonMethods::with_desc_dir(const Function & func, std::vec
         if (util::length(shift.answer) < eps_2) {
             break;
         } else {
-            curr = util::plus(std::move(curr), std::move(shift.answer));
+            curr = util::add(std::move(curr), std::move(shift.answer));
         }
     }
 

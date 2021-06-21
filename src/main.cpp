@@ -111,17 +111,21 @@ void count_and_print_newton(NewtonMethods & newtone, const Function & func, cons
 
 void count_and_print_quasi(const Function & func, const std::vector<double> & init = {})
 {
-    QuasiNewton newtone(0.000001);
+    QuasiNewton qn(0.000001);
 
     auto print_replay = [&](const auto & res) {
-        print(std::cout, newtone.replay_data()) << '\n';
+        print(std::cout, qn.replay_data()) << '\n';
         print(std::cout, res) << "\n";
+        std::cout << "f(x) = " << qn.last_func()(res) << "\n\n";
 
-        std::cout << "For matlab:\n\n" << format_for_matlab(newtone.replay_data(), func) << "\n\n";
+        std::cout << "For matlab:\n\n" << format_for_matlab(qn.replay_data(), func) << "\n\n";
     };
 
     std::cout << "Broyder-Fletcher-Sheno:\n";
-    print_replay(newtone.bfs(func, init));
+    print_replay(qn.search_bfs(func, init));
+
+    std::cout << "Powell:\n";
+    print_replay(qn.search_powell(func, init));
 }
 
 int main() {
@@ -161,5 +165,24 @@ int main() {
     });
 
     std::cout << "func 3: " << f3 << "\n\n";
-    count_and_print_quasi(f3, {0., 1.});
+    count_and_print_quasi(f3, {3., 4.});
+
+    Function f4(2, {
+        {{{0, 4}}, 1.},
+        {{{0, 2}, {1, 1}}, 2.},
+        {{{0, 2}}, -22.},
+        {{{1, 1}}, -22.},
+        {{{1, 2}}, 1.},
+        {{}, 121.},
+
+        {{{0, 2}}, 1.},
+        {{{1, 4}}, 1.},
+        {{}, 49.},
+        {{{0, 1}, {1, 2}}, 2.},
+        {{{0, 1}}, -14.},
+        {{{1, 2}}, -14.}
+    });
+
+    std::cout << "func 4:" << f4 << "\n\n";
+    count_and_print_quasi(f4, {0, 1});
 }

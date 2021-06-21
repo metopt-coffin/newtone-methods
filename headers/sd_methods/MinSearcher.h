@@ -4,6 +4,7 @@
 
 #include "sd_methods/Function.h"
 
+#include <optional>
 #include <ostream>
 #include <string_view>
 

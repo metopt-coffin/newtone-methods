@@ -6,28 +6,35 @@
 
 namespace util {
 
-VectorT negate(VectorT vec)
+VectorT neg(VectorT vec)
 {
     std::transform(vec.begin(), vec.end(), vec.begin(), std::negate<double>());
     return std::move(vec);
 }
 
-VectorT plus(VectorT lhs, VectorT rhs)
+VectorT add(VectorT lhs, VectorT rhs)
 {
     std::transform(lhs.begin(), lhs.end(), rhs.begin(), lhs.begin(), std::plus<double>{});
     return std::move(lhs);
 }
 
-MatrixT plus(MatrixT lhs, MatrixT rhs)
+MatrixT add(MatrixT lhs, MatrixT rhs)
 {
     std::transform(lhs.begin(), lhs.end(), rhs.begin(), lhs.begin(),
-        [](auto & l_line, auto & r_line) { return plus(std::move(l_line), std::move(r_line)); });
+        [](auto & l_line, auto & r_line) { return add(std::move(l_line), std::move(r_line)); });
     return std::move(lhs);
 }
 
-VectorT minus(VectorT lhs, VectorT rhs)
+VectorT sub(VectorT lhs, VectorT rhs)
 {
     std::transform(lhs.begin(), lhs.end(), rhs.begin(), lhs.begin(), std::minus<double>{});
+    return std::move(lhs);
+}
+
+MatrixT sub(MatrixT lhs, MatrixT rhs)
+{
+    std::transform(lhs.begin(), lhs.end(), rhs.begin(), lhs.begin(),
+        [](auto & l_line, auto & r_line) { return sub(std::move(l_line), std::move(r_line)); });
     return std::move(lhs);
 }
 
