@@ -1,103 +1,36 @@
 #pragma once
 
+#include "util/VectorOps.h"
+
 #include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <functional>
 #include <iterator>
 #include <ostream>
+#include <memory>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-/**
- * Term implements idea: coeff * (x_1 ^ pow_1) * (x_2 ^ pow_2) * .. (x_dim ^ pow_dim)
- */
-struct Term
-{
-    Term(unsigned dims, std::vector<std::pair<unsigned, int>> idx_pow, double coeff)
-        : m_pows(create_pows(dims, std::move(idx_pow)))
-        , m_coeff(coeff)
-        , m_hash(count_hash())
-    {}
-
-private:
-    Term(double coeff, std::vector<int> pows)
-        : m_pows(std::move(pows))
-        , m_coeff(coeff)
-        , m_hash(count_hash())
-    {}
-
-public:
-
-    double operator()(const std::vector<double> x) const noexcept;
-
-    Term partial_der(unsigned idx) const
-    {
-        if (m_pows[idx] == 0) {
-            return Term(0., std::vector<int>(dims(), 0));
-        } else {
-            auto new_pows = m_pows;
-            new_pows[idx]--;
-            return Term(m_coeff * m_pows[idx], std::move(new_pows));
-        }
-    }
-
-    unsigned dims() const noexcept { return m_pows.size(); }
-    std::size_t hash() const noexcept { return m_hash; }
-
-    double & coeff() noexcept { return m_coeff; }
-    double coeff() const noexcept { return m_coeff; }
-
-    bool operator==(const Term & rhs) const noexcept { return m_pows == rhs.m_pows; }
-    bool operator!=(const Term & rhs) const noexcept { return m_pows != rhs.m_pows; }
-
-    friend std::ostream & operator<<(std::ostream & out, const Term & term )
-    {
-        out << term.coeff();
-        for (unsigned i = 0; i < term.m_pows.size(); ++i) {
-            if (term.m_pows[i] != 0) {
-                out << " * (x" << i << " ^ " << term.m_pows[i] << ")";
-            }
-        }
-        return out;
-    }
-
-public:
-    struct Hasher;
-
-private:
-    std::size_t count_hash() const noexcept;
-
-    static std::vector<int> create_pows(unsigned dims, std::vector<std::pair<unsigned, int>> idx_pows);
-
-private:
-    std::vector<int> m_pows;
-    double m_coeff;
-
-    std::size_t m_hash;
-};
-
-struct Term::Hasher
-{
-    std::size_t operator()(const Term & term) const noexcept { return term.hash(); }
-};
 
 template <unsigned Depth>
 struct Func
 {
     using CallRes = std::vector<typename Func<Depth - 1>::CallRes>;
     using GradRes = Func<Depth + 1>;
-    using Underlying = std::vector<Func<Depth - 1>>;
+    using SubFn = std::conditional_t<Depth == 1, std::unique_ptr<Func<0>>, Func<Depth - 1>>;
+    using Underlying = std::vector<SubFn>;
 
     explicit Func(Underlying funcs = {})
         : m_funcs(std::move(funcs))
     {}
 
-    CallRes operator()(const std::vector<double> & x) const
+    virtual CallRes operator()(const std::vector<double> & x) const
     {
         CallRes res(m_funcs.size());
         std::transform(m_funcs.begin(), m_funcs.end(), res.begin(),
-            [&x](const auto & func) { return func(x); });
+            [&x](const auto & func) { return deref(func)(x); });
         return res;
     }
 
@@ -106,85 +39,207 @@ struct Func
         std::vector<Func<Depth>> res;
         res.reserve(dims());
         for (const auto & func : m_funcs) {
-            res.push_back(func.grad());
+            res.emplace_back(deref(func).grad());
         }
         return GradRes(std::move(res));
     }
 
     unsigned dims() const noexcept { return m_funcs.size(); }
 
-    friend std::ostream & operator<<(std::ostream & out, const Func<Depth> f) {
+    friend std::ostream & operator<<(std::ostream & out, const Func<Depth> & f) {
         out << "[\n";
         for (const auto & func : f.m_funcs) {
-            out << func << '\n';
+            out << deref(func) << '\n';
         }
         out << "]\n";
         return out;
+    }
+private:
+    static const Func<Depth - 1> & deref(const SubFn & fn)
+    {
+        if constexpr (Depth == 1) {
+            return *fn;
+        } else {
+            return fn;
+        }
     }
 
 private:
     Underlying m_funcs;
 };
 
-template <>
+template<>
 struct Func<0>
 {
     using CallRes = double;
 
-    explicit Func(unsigned dims = 0, std::vector<std::pair<std::vector<std::pair<unsigned, int>>, double>> terms = {})
+protected:
+    Func(unsigned dims)
         : m_dims(dims)
-    {
-        for (auto & [term, coeff] : terms) {
-            add_term(Term(dims, std::move(term), coeff));
-        }
-    }
+    {}
 
-    CallRes operator()(const std::vector<double> & x) const noexcept;
+public:
+    virtual ~Func() = default;
 
-    Func<0> partial_der(unsigned idx) const
-    {
-        Func res(dims());
-        for (const auto & term : m_terms) {
-            res.add_term(term.partial_der(idx));
-        }
-        return res;
-    }
+public:
+    virtual double operator()(const util::VectorT & x) const noexcept = 0;
+    virtual std::unique_ptr<Func> part_der(unsigned idx) const noexcept = 0;
+    virtual std::unique_ptr<Func> clone() const noexcept = 0;
+    virtual std::ostream & print(std::ostream & out) const = 0;
 
-    Func<1> grad() const
-    {
-        std::vector<Func<0>> res(dims());
-        for (unsigned i = 0; i < dims(); ++i) {
-            res[i] = partial_der(i);
-        }
-        return Func<1>(std::move(res));
-    }
+    friend std::ostream & operator<<(std::ostream & out, const Func<0> & fn) { return fn.print(out); }
 
     unsigned dims() const noexcept { return m_dims; }
 
-    friend std::ostream & operator<<(std::ostream & out, const Func<0> & func)
+    Func<1> grad() const noexcept
     {
-        if (!func.m_terms.empty()) {
-            out << '(' << *func.m_terms.begin() << ')';
-            std::for_each(++func.m_terms.begin(), func.m_terms.end(), [&out](const Term & term) { out << " + (" << term << ')'; });
+        std::vector<std::unique_ptr<Func<0>>> derivs(dims());
+        for (unsigned i = 0; i < dims(); ++i) {
+            derivs[i] = part_der(i);
+            derivs[i]->m_dims = dims();
         }
-        return out;
+        return Func<1>(std::move(derivs));
     }
 
-private:
-    using Terms = std::unordered_set<Term, Term::Hasher>;
-
-    void add_term(Term term)
+    double as_const() const noexcept
     {
-        auto [it, emplaced] = m_terms.emplace(std::move(term));
-        if (!emplaced) {
-            term_mut(it).coeff() += term.coeff();
-        }
+        assert(dims() == 0);
+        static util::VectorT empty;
+        return (*this)(empty);
     }
 
-    static Term & term_mut(const Terms::iterator & it) noexcept { return const_cast<Term &>(*it); }
-private:
-    Terms m_terms;
+protected:
     unsigned m_dims;
 };
 
-using Function = Func<0>;
+using Fn = Func<0>;
+
+std::unique_ptr<Fn> cns(double value);
+std::unique_ptr<Fn> var(unsigned idx);
+std::unique_ptr<Fn> add(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r);
+std::unique_ptr<Fn> sub(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r);
+std::unique_ptr<Fn> mul(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r);
+std::unique_ptr<Fn> pow(std::unique_ptr<Fn> base, int p);
+
+inline std::unique_ptr<Fn> operator*(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r) { return mul(std::move(l), std::move(r)); }
+inline std::unique_ptr<Fn> operator*(std::unique_ptr<Fn> l, double r) { return std::move(l) * cns(r); }
+inline std::unique_ptr<Fn> operator*(double l, std::unique_ptr<Fn> r) { return cns(l) * std::move(r); }
+
+inline std::unique_ptr<Fn> operator+(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r) { return add(std::move(l), std::move(r)); }
+inline std::unique_ptr<Fn> operator+(std::unique_ptr<Fn> l, double r) { return std::move(l) + cns(r); }
+inline std::unique_ptr<Fn> operator+(double l, std::unique_ptr<Fn> r) { return cns(l) + std::move(r); }
+
+inline std::unique_ptr<Fn> operator-(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r) { return sub(std::move(l), std::move(r)); }
+inline std::unique_ptr<Fn> operator-(std::unique_ptr<Fn> l, double r) { return std::move(l) - cns(r); }
+inline std::unique_ptr<Fn> operator-(double l, std::unique_ptr<Fn> r) { return cns(l) - std::move(r); }
+
+inline std::unique_ptr<Fn> operator^(std::unique_ptr<Fn> l, int r) { return pow(std::move(l), r); }
+
+inline std::unique_ptr<Fn> operator/(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r) { return mul(std::move(l), pow(std::move(r), -1)); }
+
+struct Variable : Fn
+{
+    Variable(unsigned idx)
+        : Fn(idx + 1)
+        , index(idx)
+    {}
+
+    double operator()(const util::VectorT & x) const noexcept override { return x[index]; }
+    std::unique_ptr<Fn> part_der(unsigned idx) const noexcept override;
+    std::unique_ptr<Fn> clone() const noexcept override { return std::make_unique<Variable>(index); }
+    std::ostream & print(std::ostream & out) const override { return out << "x" << index; }
+
+    unsigned index;
+};
+
+struct Const : Fn
+{
+    Const(double val)
+        : Fn(0)
+        , value(val)
+    {}
+
+    double operator()(const util::VectorT & x) const noexcept override { return value; }
+    std::unique_ptr<Fn> part_der(unsigned idx) const noexcept override;
+    std::unique_ptr<Fn> clone() const noexcept override { return std::make_unique<Const>(value); }
+    std::ostream & print(std::ostream & out) const override { return out << value; }
+
+    double value;
+};
+
+template <class Oper>
+struct BinOp : Fn, Oper
+{
+    BinOp(std::unique_ptr<Fn> l, std::unique_ptr<Fn> r)
+        : Fn(std::max(l->dims(), r->dims()))
+        , m_l(std::move(l))
+        , m_r(std::move(r))
+    {}
+
+    double operator()(const util::VectorT & x) const noexcept override
+    {
+        double l_res = (*m_l)(x);
+        double r_res = (*m_r)(x);
+        return as_op()(l_res, r_res);
+    }
+
+private:
+    const Oper & as_op() const noexcept { return *static_cast<const Oper *>(this); }
+
+protected:
+    std::unique_ptr<Fn> m_l;
+    std::unique_ptr<Fn> m_r;
+};
+
+struct Add : BinOp<std::plus<double>>
+{
+    using Super = BinOp<std::plus<double>>;
+    using Super::Super;
+
+    std::unique_ptr<Fn> clone() const noexcept override { return add(m_l->clone(), m_r->clone()); }
+
+    std::unique_ptr<Fn> part_der(unsigned idx) const noexcept override;
+    std::ostream & print(std::ostream & out) const override { return out << '(' << (*m_l) << " + " << (*m_r) << ')'; }
+};
+
+struct Sub : BinOp<std::minus<double>>
+{
+    using Super = BinOp<std::minus<double>>;
+    using Super::Super;
+
+    std::unique_ptr<Fn> clone() const noexcept override { return sub(m_l->clone(), m_r->clone()); }
+
+    std::unique_ptr<Fn> part_der(unsigned idx) const noexcept override;
+    std::ostream & print(std::ostream & out) const override { return out << '(' << (*m_l) << " - " << (*m_r) << ')'; }
+};
+
+struct Mul : BinOp<std::multiplies<double>>
+{
+    using Super = BinOp<std::multiplies<double>>;
+    using Super::Super;
+
+    std::unique_ptr<Fn> clone() const noexcept override { return mul(m_l->clone(), m_r->clone()); }
+
+    std::unique_ptr<Fn> part_der(unsigned idx) const noexcept override;
+    std::ostream & print(std::ostream & out) const override { return out << '(' << (*m_l) << " * " << (*m_r) << ')'; }
+};
+
+struct Pow : Fn
+{
+    Pow(std::unique_ptr<Fn> base, int pow)
+        : Fn(base->dims())
+        , m_base(std::move(base))
+        , m_pow(pow)
+    {}
+
+    std::unique_ptr<Fn> clone() const noexcept override { return pow(m_base->clone(), m_pow); }
+    double operator()(const util::VectorT & x) const noexcept override { return std::pow((*m_base)(x), m_pow); }
+    std::unique_ptr<Fn> part_der(unsigned idx) const noexcept override;
+    std::ostream & print(std::ostream & out) const override { return out << '(' << (*m_base) << " ^ " << m_pow << ')'; }
+
+private:
+    std::unique_ptr<Fn> m_base;
+    int m_pow;
+};
+
+using Function = Fn;

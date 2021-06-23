@@ -1,5 +1,7 @@
 #include "methods/Newton.h"
 #include "methods/QuasiNewton.h"
+#include "nd_methods/FastestDescent.h"
+#include "sd_methods/Brent.h"
 #include "util/Function.h"
 #include "util/Misc.h"
 #include "util/ReplayData.h"
@@ -7,6 +9,7 @@
 #include "util/VersionedData.h"
 
 #include <algorithm>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <ostream>
@@ -128,61 +131,84 @@ void count_and_print_quasi(const Function & func, const std::vector<double> & in
     print_replay(qn.search_powell(func, init));
 }
 
+void count_and_print_fast_desc(min_nd::FastestDescent & fd, const Function & func, util::VectorT init = {})
+{
+    auto print_replay = [&](const auto & res) {
+        print(std::cout, fd.replay_data()) << '\n';
+        print(std::cout, res) << "\n";
+        std::cout << "f(x) = " << fd.last_func()(res) << "\n\n";
+
+        std::cout << "For matlab:\n\n" << format_for_matlab(fd.replay_data(), func) << "\n\n";
+    };
+
+    std::cout << "Fastest descend:\n";
+    print_replay(fd.find_min_traced(func, std::move(init)));
+}
+
+struct HardcodedHesse : public Func<2>
+{
+
+};
+
+struct HardcodedFunction : public Function
+{
+    CallRes operator()(const util::VectorT & vec) const noexcept override
+    {
+        double a = (vec[0] - 1.) / 2.;
+        double b = (vec[1] - 1.) / 3.;
+        double c = (vec[0] - 2.) / 2.;
+        double d = (vec[1] - 1.) / 3.;
+
+        double a_b_1 = a * a + b * b + 1.;
+        double c_d_1 = c * c + d * d + 1.;
+        return 100. - (2. / a_b_1) - (1. / c_d_1);
+    }
+};
+
+auto get_f4_p()
+{
+    auto a = ((var(0) - 1) * 0.5) ^ 2;
+    auto b = ((var(1) - 1) * (1. / 3.)) ^ 2;
+    auto c = ((var(0) - 2) * 0.5) ^ 2;
+
+    auto a_b_1 = std::move(a) + b->clone() + 1.;
+    auto b_c_1 = std::move(b) + std::move(c) + 1.;
+
+    return 100. - (cns(2.) / std::move(a_b_1)) - (cns(1.) / std::move(b_c_1));
+}
+
 int main() {
-    // NewtonMethods newtone(0.000001);
+    
 
-    // Function f1(2, {
-    //     {{{0, 2}}, 1.},
-    //     {{{1, 2}}, 1.},
-    //     {{{0, 1}, {1, 1}}, 1.2}
-    // });
-    // std::vector init1{4., 1.};
+    std::cout << std::setprecision(8);
 
-    // std::cout << "func 1: " << f1 << "\n\n";
-    // count_and_print_newton(newtone, f1, init1);
+    NewtonMethods newtone(0.000001);
 
-    // Function f2(2, {
-    //     {{{1, 2}}, 100.},
-    //     {{{0, 2}, {1, 1}}, -200.},
-    //     {{{0, 4}}, 100.},
+    auto f1_p = (100. * ((var(1) - (var(0)) ^ 2) ^ 2)) + ((1 - var(0)) ^ 2);
+    Function & f1 = *f1_p;
 
-    //     {{}, 1.},
-    //     {{{0, 1}}, -2},
-    //     {{{0, 2}}, 1.}
-    // });
-    // std::vector init2{-1.2, 1.};
+    auto f2_p = (((var(0) ^ 2) + var(1) - 11.) ^ 2) + ((var(0) + (var(1) ^ 2) - 7.) ^ 2);
+    Function & f2 = *f2_p;
 
-    // std::cout << "func 2: " << f2 << "\n\n";
-    // count_and_print_newton(newtone, f2, init2);
+    auto f3_p = ((var(0) + (10. * var(1))) ^ 2) +
+        (5. * ((var(2) - var(3)) ^ 2)) +
+        ((var(1) - (2 * var(2))) ^ 4) +
+        (10 * ((var(0) - var(1)) ^ 4));
 
-    Function f3(2, {
-        {{{1, 2}}, 100.},
-        {{{0, 2}, {1, 1}}, -200.},
-        {{{0, 4}}, 100.},
-        {{}, 1.},
-        {{{0, 1}}, -2.},
-        {{{0, 2}}, 1.}
-    });
+    Function & f3 = *f3_p;
 
-    std::cout << "func 3: " << f3 << "\n\n";
-    count_and_print_quasi(f3, {3., 4.});
+    auto f4_p = get_f4_p();
+    Function & f4 = *f4_p;
 
-    Function f4(2, {
-        {{{0, 4}}, 1.},
-        {{{0, 2}, {1, 1}}, 2.},
-        {{{0, 2}}, -22.},
-        {{{1, 1}}, -22.},
-        {{{1, 2}}, 1.},
-        {{}, 121.},
+    util::VectorT init{1., 2.};
 
-        {{{0, 2}}, 1.},
-        {{{1, 4}}, 1.},
-        {{}, 49.},
-        {{{0, 1}, {1, 2}}, 2.},
-        {{{0, 1}}, -14.},
-        {{{1, 2}}, -14.}
-    });
+    // std::cout << "Z = 100 * (Y - X.^2).^2 + (1 - X).^2\n";
+    std::cout << f4 << "\n";
+    // count_and_print_newton(newtone, f2, {0.8, 0.8});
+    count_and_print_newton(newtone, f4, init);
+    count_and_print_quasi(f4, init);
 
-    std::cout << "func 4:" << f4 << "\n\n";
-    count_and_print_quasi(f4, {0, 1});
+    // min_nd::FastestDescent fast_d(0.000001);
+    // fast_d.find_min_traced(f1);
+    // count_and_print_fast_desc(fast_d, f2, {-1.2, 1.});
 }

@@ -20,7 +20,7 @@ double Searcher::find_alpha(const PointT & curr, const std::vector<double> & shi
 {
     return m_sd_searcher.find_min(min1d::Function(
         [&](double x) { return last_func()(util::add(curr, util::mul(shift, x))); },
-        {-10., 10.}));
+        {0.0, 10}));
 }
 
 void Searcher::log_x(unsigned iter_num, const std::vector<double> & x)

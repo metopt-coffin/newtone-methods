@@ -7,6 +7,7 @@
 #include "util/VersionedData.h"
 
 #include <functional>
+#include <iostream>
 #include <type_traits>
 
 std::vector<double> NewtonMethods::classic(const Function & func, std::vector<double> init)
