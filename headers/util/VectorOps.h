@@ -1,3 +1,6 @@
+/*
+ *  Functions for matrix and vector operations
+ */
 #pragma once
 
 #include <vector>

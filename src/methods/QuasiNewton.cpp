@@ -10,6 +10,8 @@ using MatrixT = util::MatrixT;
 
 namespace {
 
+// returs identity matrix, i.e. 
+// matrix that has one on the main diag and zero everywhere else
 MatrixT identity_matrix(unsigned dims)
 {
     std::vector res(dims, std::vector(dims, 0.));
@@ -20,6 +22,7 @@ MatrixT identity_matrix(unsigned dims)
 }
 }
 
+// Count next anti-hessian with Broyden-Fletcher-Shanno algorithm
 MatrixT QuasiNewton::bfs(MatrixT ah, VectorT w_diff, const VectorT & curr_diff)
 {
     VectorT ah_wd = util::mul(ah, w_diff);
@@ -39,6 +42,7 @@ MatrixT QuasiNewton::bfs(MatrixT ah, VectorT w_diff, const VectorT & curr_diff)
     return util::add(std::move(ah), std::move(thd));
 }
 
+// Count next anti-hessian with powell algorithm
 util::MatrixT QuasiNewton::powell(util::MatrixT ah, util::VectorT w_diff, const util::VectorT & x_diff)
 {
     VectorT x_wave = util::add(util::mul(ah, w_diff), x_diff);
@@ -50,6 +54,7 @@ util::MatrixT QuasiNewton::powell(util::MatrixT ah, util::VectorT w_diff, const 
 
 auto QuasiNewton::search_common(UpdateRule rule, const Function &func, PointT init) -> PointT
 {
+    // choose current algorithm
     decltype(&QuasiNewton::bfs) next_anti_hessian_method;
     switch (rule) {
         case UpdateRule::BFSh:
@@ -60,6 +65,7 @@ auto QuasiNewton::search_common(UpdateRule rule, const Function &func, PointT in
             break;
     }
 
+    // Init
     using namespace std::placeholders;
     auto next_anti_hessian = std::bind(next_anti_hessian_method, this, _1, _2, _3);
 
@@ -74,6 +80,7 @@ auto QuasiNewton::search_common(UpdateRule rule, const Function &func, PointT in
     auto grad = func.grad();
     MatrixT anti_hessian = identity_matrix(func.dims());
 
+    // Count first iteration
     {
         w = util::neg(grad(curr));
         VectorT p = w;
@@ -84,19 +91,23 @@ auto QuasiNewton::search_common(UpdateRule rule, const Function &func, PointT in
     }
 
     do {
+        // Count next vector w
         VectorT next_w = util::neg(grad(curr));
         VectorT w_diff = util::sub(next_w, std::move(w));
         w = std::move(next_w);
 
+        // Count next anti-hessian matrix
         anti_hessian = next_anti_hessian(std::move(anti_hessian), std::move(w_diff), curr_diff);
 
+        // Count next step and alpha coefficient
         VectorT p = util::mul(anti_hessian, w);
         double alpha = find_alpha(curr, p);
 
+        // Count next point
         curr_diff = util::mul(std::move(p), alpha);
         curr = util::add(std::move(curr), curr_diff);
         log_x(iter_num++, curr);
-    } while(util::length(curr_diff) > eps_2);
+    } while(util::length(curr_diff) > eps_2);       // Do until required precision is reached
 
     return curr;
 }
